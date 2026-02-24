@@ -1,0 +1,9 @@
+
+{
+  "name": "helloeve",
+  "description": "הפלטפורמה המתקדמת בעולם לבניית אתרים מבוססי בינה מלאכותית. מבית SiteLaunch.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}

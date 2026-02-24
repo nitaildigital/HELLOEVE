@@ -1,0 +1,746 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ──────────────────────────────────────────────
+
+enum UserRole {
+  USER
+  ADMIN
+  DESIGNER
+}
+
+enum PricingPlan {
+  STARTER
+  PRO
+  PRO_PLUS
+}
+
+enum SiteType {
+  IMAGE
+  LANDING
+  SHOP
+  BOOKING
+  RESTAURANT
+  COURSE
+  CONTRACTOR
+  PORTFOLIO
+}
+
+enum TemplateTier {
+  CORE
+  PREMIUM
+  MARKETPLACE
+}
+
+enum CreditTxType {
+  VIBE_DESIGN
+  AI_ASSISTANT
+  SEO_AI
+  PURCHASE
+  MONTHLY_RESET
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  TRIALING
+  PAUSED
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  SHIPPED
+  DELIVERED
+  CANCELED
+  REFUNDED
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELED
+  COMPLETED
+  NO_SHOW
+}
+
+enum LeadSource {
+  CONTACT_FORM
+  CHAT
+  PHONE
+  WHATSAPP
+  EXTERNAL
+}
+
+enum PixelPlatform {
+  META
+  GA4
+  GTM
+  GOOGLE_ADS
+  TIKTOK
+  TABOOLA
+  OUTBRAIN
+  BING
+  HOTJAR
+  CLARITY
+  INTERCOM
+  CRISP
+}
+
+enum ScriptLocation {
+  HEAD
+  BODY_START
+  BODY_END
+}
+
+enum RedirectType {
+  PERMANENT
+  TEMPORARY
+}
+
+enum PartnerTier {
+  STANDARD
+  VIP
+}
+
+enum PayoutStatus {
+  PENDING
+  PROCESSING
+  PAID
+  FAILED
+}
+
+enum ExitStatus {
+  PENDING
+  PROCESSING
+  READY
+  DOWNLOADED
+  EXPIRED
+}
+
+enum AddonType {
+  SEO_AI
+  ACCESSIBILITY
+  SMS_NOTIFICATIONS
+  BOOKING_ADVANCED
+  GOOGLE_REVIEWS
+  AB_TESTING
+  AFFILIATE_SHOP
+  SHOP
+  WHITE_LABEL
+}
+
+enum InvoiceStatus {
+  DRAFT
+  OPEN
+  PAID
+  VOID
+  UNCOLLECTIBLE
+}
+
+enum DomainStatus {
+  PENDING
+  PROPAGATING
+  ACTIVE
+  FAILED
+}
+
+// ─── Core Models ────────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String?
+  name          String    @default("")
+  googleId      String?   @unique
+  avatarUrl     String?
+  phone         String?
+  plan          PricingPlan @default(STARTER)
+  role          UserRole    @default(USER)
+  businessField String?
+  location      String?
+  vatNumber     String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  sites              Site[]
+  creditBalance      CreditBalance?
+  creditTransactions CreditTransaction[]
+  subscriptions      Subscription[]
+  invoices           Invoice[]
+  addons             Addon[]
+  chatMessages       ChatMessage[]
+  partner            Partner?
+  referredBy         Referral?       @relation("ReferredUser")
+  designer           Designer?
+  exitRequests       ExitRequest[]
+  mediaFiles         MediaFile[]
+  refreshTokens      RefreshToken[]
+
+  @@index([email])
+  @@index([googleId])
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([token])
+}
+
+model Site {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  businessName    String
+  businessNameEn  String
+  type            SiteType
+  domain          String?   @unique
+  customDomain    String?   @unique
+  logoUrl         String?
+  colorPrimary    String    @default("#e33670")
+  colorSecondary  String    @default("#FFFFFF")
+  font            String    @default("Assistant")
+  about           String    @default("")
+  isLaunched      Boolean   @default(false)
+  isMaintenanceMode Boolean @default(false)
+  templateId      String?
+  template        Template? @relation(fields: [templateId], references: [id])
+  language        String    @default("he")
+  direction       String    @default("rtl")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  contact         Contact?
+  services        Service[]
+  pages           Page[]
+  designTokens    DesignTokens?
+  leads           Lead[]
+  products        Product[]
+  orders          Order[]
+  bookings        Booking[]
+  analyticsEvents AnalyticsEvent[]
+  pixelConfigs    PixelConfig[]
+  redirects       Redirect[]
+  webhookConfigs  WebhookConfig[]
+  customScripts   CustomScript[]
+  domainConfig    DomainConfig?
+  chatMessages    ChatMessage[]
+
+  @@index([userId])
+  @@index([domain])
+}
+
+model Contact {
+  id       String  @id @default(cuid())
+  siteId   String  @unique
+  site     Site    @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  phone    String  @default("")
+  email    String  @default("")
+  address  String  @default("")
+  whatsapp String  @default("")
+  hours    Json?
+}
+
+model Service {
+  id          String  @id @default(cuid())
+  siteId      String
+  site        Site    @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  name        String
+  description String  @default("")
+  price       String?
+  order       Int     @default(0)
+
+  @@index([siteId])
+}
+
+// ─── Pages & CMS ────────────────────────────────────────
+
+model Page {
+  id             String   @id @default(cuid())
+  siteId         String
+  site           Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  title          String
+  slug           String
+  order          Int      @default(0)
+  sections       Json     @default("[]")
+  isPublished    Boolean  @default(true)
+  seoTitle       String?
+  seoDescription String?
+  seoCanonical   String?
+  ogTitle        String?
+  ogDescription  String?
+  ogImage        String?
+  noIndex        Boolean  @default(false)
+  noFollow       Boolean  @default(false)
+  focusKeyword   String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([siteId, slug])
+  @@index([siteId])
+}
+
+// ─── Templates & Marketplace ────────────────────────────
+
+model Template {
+  id           String       @id @default(cuid())
+  name         String
+  slug         String       @unique
+  tier         TemplateTier @default(CORE)
+  category     String
+  previewUrl   String?
+  thumbnailUrl String?
+  price        Int          @default(0)
+  designerId   String?
+  designer     Designer?    @relation(fields: [designerId], references: [id])
+  designTokens Json?
+  siteTypes    SiteType[]
+  isApproved   Boolean      @default(false)
+  isActive     Boolean      @default(true)
+  purchaseCount Int         @default(0)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  sites             Site[]
+  templatePurchases TemplatePurchase[]
+
+  @@index([tier])
+  @@index([category])
+}
+
+model Designer {
+  id          String     @id @default(cuid())
+  userId      String     @unique
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profileName String
+  bio         String     @default("")
+  rating      Float      @default(0)
+  paypalEmail String?
+  totalSales  Int        @default(0)
+  createdAt   DateTime   @default(now())
+
+  templates   Template[]
+}
+
+model TemplatePurchase {
+  id         String   @id @default(cuid())
+  userId     String
+  templateId String
+  template   Template @relation(fields: [templateId], references: [id])
+  amount     Int
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, templateId])
+}
+
+// ─── Vibe Design & AI ───────────────────────────────────
+
+model DesignTokens {
+  id              String  @id @default(cuid())
+  siteId          String  @unique
+  site            Site    @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  backgroundColor String  @default("#FFFFFF")
+  textColor       String  @default("#14181f")
+  primaryColor    String  @default("#e33670")
+  borderRadius    String  @default("1rem")
+  shadow          String  @default("shadow-2xl shadow-slate-200/50")
+  spacing         String  @default("4rem")
+  font            String  @default("Assistant")
+  customCSS       String?
+}
+
+model ChatMessage {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  siteId     String?
+  site       Site?    @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  role       String
+  content    String
+  creditUsed Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([siteId])
+}
+
+// ─── Credits & Billing ──────────────────────────────────
+
+model CreditBalance {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  monthly   Int      @default(0)
+  purchased Int      @default(0)
+  lastReset DateTime @default(now())
+}
+
+model CreditTransaction {
+  id        String     @id @default(cuid())
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      CreditTxType
+  amount    Int
+  balance   Int
+  note      String?
+  createdAt DateTime   @default(now())
+
+  @@index([userId])
+}
+
+model Subscription {
+  id               String             @id @default(cuid())
+  userId           String
+  user             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stripeSubId      String?            @unique
+  stripeCustomerId String?
+  plan             PricingPlan
+  status           SubscriptionStatus @default(ACTIVE)
+  currentPeriodEnd DateTime?
+  cancelAt         DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  @@index([userId])
+  @@index([stripeSubId])
+}
+
+model Invoice {
+  id              String        @id @default(cuid())
+  userId          String
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stripeInvoiceId String?       @unique
+  amount          Int
+  currency        String        @default("ILS")
+  status          InvoiceStatus @default(DRAFT)
+  description     String?
+  pdfUrl          String?
+  createdAt       DateTime      @default(now())
+
+  @@index([userId])
+}
+
+model Addon {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      AddonType
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+
+  @@unique([userId, type])
+}
+
+// ─── Leads ──────────────────────────────────────────────
+
+model Lead {
+  id        String     @id @default(cuid())
+  siteId    String
+  site      Site       @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  name      String     @default("")
+  email     String     @default("")
+  phone     String     @default("")
+  message   String     @default("")
+  source    LeadSource @default(CONTACT_FORM)
+  page      String?
+  isRead    Boolean    @default(false)
+  createdAt DateTime   @default(now())
+
+  @@index([siteId])
+  @@index([createdAt])
+}
+
+// ─── Shop ───────────────────────────────────────────────
+
+model Product {
+  id          String      @id @default(cuid())
+  siteId      String
+  site        Site        @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  name        String
+  description String      @default("")
+  price       Int
+  comparePrice Int?
+  images      String[]
+  category    String      @default("")
+  sku         String?
+  stock       Int         @default(0)
+  isActive    Boolean     @default(true)
+  isDigital   Boolean     @default(false)
+  digitalUrl  String?
+  weight      Float?
+  order       Int         @default(0)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  orderItems  OrderItem[]
+
+  @@index([siteId])
+}
+
+model Order {
+  id            String      @id @default(cuid())
+  siteId        String
+  site          Site        @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  orderNumber   String      @unique @default(cuid())
+  customerName  String
+  customerEmail String
+  customerPhone String      @default("")
+  shippingAddress Json?
+  items         OrderItem[]
+  subtotal      Int
+  shippingCost  Int         @default(0)
+  total         Int
+  status        OrderStatus @default(PENDING)
+  notes         String?
+  stripePaymentId String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([siteId])
+  @@index([customerEmail])
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int
+  price     Int
+  name      String
+}
+
+// ─── Bookings ───────────────────────────────────────────
+
+model Booking {
+  id            String        @id @default(cuid())
+  siteId        String
+  site          Site          @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  customerName  String
+  customerEmail String        @default("")
+  customerPhone String
+  date          DateTime
+  time          String
+  duration      Int           @default(60)
+  serviceName   String        @default("")
+  status        BookingStatus @default(PENDING)
+  notes         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([siteId])
+  @@index([date])
+}
+
+model BookingSchedule {
+  id        String @id @default(cuid())
+  siteId    String @unique
+  schedule  Json
+}
+
+// ─── Analytics ──────────────────────────────────────────
+
+model AnalyticsEvent {
+  id        String   @id @default(cuid())
+  siteId    String
+  site      Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  type      String
+  page      String?
+  referrer  String?
+  device    String?
+  browser   String?
+  country   String?
+  sessionId String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([siteId])
+  @@index([createdAt])
+  @@index([siteId, type])
+}
+
+// ─── SEO & Integrations ────────────────────────────────
+
+model PixelConfig {
+  id        String        @id @default(cuid())
+  siteId    String
+  site      Site          @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  platform  PixelPlatform
+  pixelId   String
+  isActive  Boolean       @default(true)
+  config    Json?
+  createdAt DateTime      @default(now())
+
+  @@unique([siteId, platform])
+}
+
+model Redirect {
+  id       String       @id @default(cuid())
+  siteId   String
+  site     Site         @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  fromPath String
+  toPath   String
+  type     RedirectType @default(PERMANENT)
+  isActive Boolean      @default(true)
+
+  @@unique([siteId, fromPath])
+  @@index([siteId])
+}
+
+model CustomScript {
+  id        String         @id @default(cuid())
+  siteId    String
+  site      Site           @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  name      String         @default("")
+  code      String
+  location  ScriptLocation @default(HEAD)
+  pages     String[]
+  isActive  Boolean        @default(true)
+  createdAt DateTime       @default(now())
+
+  @@index([siteId])
+}
+
+model WebhookConfig {
+  id        String   @id @default(cuid())
+  siteId    String
+  site      Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  name      String   @default("")
+  url       String
+  method    String   @default("POST")
+  headers   Json?
+  events    String[]
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  logs      WebhookLog[]
+
+  @@index([siteId])
+}
+
+model WebhookLog {
+  id          String   @id @default(cuid())
+  webhookId   String
+  webhook     WebhookConfig @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+  event       String
+  payload     Json
+  statusCode  Int?
+  response    String?
+  success     Boolean  @default(false)
+  attempts    Int      @default(1)
+  createdAt   DateTime @default(now())
+
+  @@index([webhookId])
+}
+
+// ─── Domains ────────────────────────────────────────────
+
+model DomainConfig {
+  id           String       @id @default(cuid())
+  siteId       String       @unique
+  site         Site         @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  domain       String       @unique
+  provider     String?
+  status       DomainStatus @default(PENDING)
+  sslActive    Boolean      @default(false)
+  dnsRecords   Json?
+  lastChecked  DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+}
+
+// ─── Partners / Affiliates ──────────────────────────────
+
+model Partner {
+  id             String      @id @default(cuid())
+  userId         String      @unique
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  referralCode   String      @unique
+  qrCodeUrl      String?
+  commissionRate Float       @default(0.20)
+  tier           PartnerTier @default(STANDARD)
+  totalEarnings  Int         @default(0)
+  paypalEmail    String?
+  bankDetails    Json?
+  isActive       Boolean     @default(true)
+  createdAt      DateTime    @default(now())
+
+  referrals      Referral[]
+  payouts        PartnerPayout[]
+}
+
+model Referral {
+  id             String   @id @default(cuid())
+  partnerId      String
+  partner        Partner  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  referredUserId String   @unique
+  referredUser   User     @relation("ReferredUser", fields: [referredUserId], references: [id])
+  commission     Int      @default(0)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  @@index([partnerId])
+}
+
+model PartnerPayout {
+  id        String       @id @default(cuid())
+  partnerId String
+  partner   Partner      @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  amount    Int
+  method    String       @default("paypal")
+  status    PayoutStatus @default(PENDING)
+  paidAt    DateTime?
+  createdAt DateTime     @default(now())
+
+  @@index([partnerId])
+}
+
+// ─── Media ──────────────────────────────────────────────
+
+model MediaFile {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  siteId    String?
+  filename  String
+  url       String
+  mimeType  String
+  size      Int
+  width     Int?
+  height    Int?
+  alt       String   @default("")
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([siteId])
+}
+
+// ─── Exit Package ───────────────────────────────────────
+
+model ExitRequest {
+  id          String     @id @default(cuid())
+  userId      String
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  siteId      String
+  status      ExitStatus @default(PENDING)
+  downloadUrl String?
+  expiresAt   DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([userId])
+}
